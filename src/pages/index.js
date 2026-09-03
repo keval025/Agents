@@ -1,0 +1,10 @@
+export { default as Home } from './Home';
+export { default as Shop } from './Shop';
+export { default as ProductDetails } from './ProductDetails';
+export { default as Cart } from './Cart';
+export { default as Wishlist } from './Wishlist';
+export { default as Checkout } from './Checkout';
+export { default as Login } from './Login';
+export { default as Register } from './Register';
+export { default as ForgotPassword } from './ForgotPassword';
+export { default as NotFound } from './NotFound';
