@@ -1,26 +1,30 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Truck, CreditCard, Lock, CheckCircle2, ArrowRight, ShoppingBag } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { ShieldCheck, Truck, CreditCard, Lock, CheckCircle2, ArrowRight, ShoppingBag, AlertCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { createOrder } from '../services/orderService.js';
 import { formatPrice } from '../utils/currency';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
 
 export default function Checkout() {
-  const { cart, subtotal, discountAmount, shippingCost, total, clearCart } = useCart();
+  const { cart, subtotal, discountAmount, shippingCost, clearCart } = useCart();
+  const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Form States
   const [formData, setFormData] = useState({
-    email: 'client@aura-atelier.com',
-    phone: '+1 (555) 234-5678',
-    firstName: 'Eleanor',
-    lastName: 'Vance',
-    address: '742 Evergreen Terrace',
-    apartment: 'Apt 4B',
-    city: 'New York',
-    state: 'NY',
-    postalCode: '10001',
+    email: '',
+    phone: '',
+    firstName: '',
+    lastName: '',
+    address: '',
+    apartment: '',
+    city: '',
+    state: '',
+    postalCode: '',
     country: 'United States',
   });
 
@@ -28,17 +32,35 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('card'); // card, applepay, cod
   const [cardDetails, setCardDetails] = useState({
     number: '•••• •••• •••• 4242',
-    name: 'Eleanor Vance',
+    name: '',
     expiry: '12/28',
     cvv: '888',
   });
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isOrderPlaced, setIsOrderPlaced] = useState(false);
-  const [orderReference, setOrderReference] = useState('');
 
-  // Shipping adjustments
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState(null);
+  const [placedOrder, setPlacedOrder] = useState(null);
+
+  // Sync logged in user profile defaults
+  useEffect(() => {
+    if (user) {
+      const nameParts = (profile?.full_name || '').split(' ');
+      setFormData((prev) => ({
+        ...prev,
+        email: user.email || '',
+        firstName: prev.firstName || nameParts[0] || '',
+        lastName: prev.lastName || nameParts.slice(1).join(' ') || '',
+      }));
+      setCardDetails((prev) => ({
+        ...prev,
+        name: prev.name || profile?.full_name || 'Valued Atelier Client',
+      }));
+    }
+  }, [user, profile]);
+
+  // Shipping calculation
   const expressFee = deliveryMethod === 'express' ? 25 : 0;
-  const effectiveShipping = shippingCost + expressFee;
+  const effectiveShipping = deliveryMethod === 'express' ? 25 : (subtotal >= 200 ? 0 : 15);
   const grandTotal = Math.max(0, subtotal - discountAmount + effectiveShipping);
 
   const handleInputChange = (e) => {
@@ -46,20 +68,88 @@ export default function Checkout() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handlePlaceOrder = (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
-    setIsProcessing(true);
 
-    setTimeout(() => {
-      const generatedId = `AUR-${Math.floor(100000 + Math.random() * 900000)}`;
-      setOrderReference(generatedId);
-      setIsProcessing(false);
-      setIsOrderPlaced(true);
-      clearCart();
-    }, 1200);
+    if (!user) {
+      navigate('/login?redirect=/checkout');
+      return;
+    }
+
+    if (cart.length === 0) {
+      setCheckoutError('Your cart is empty.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setCheckoutError(null);
+
+    const shippingAddressPayload = {
+      email: formData.email,
+      phone: formData.phone,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      address: formData.address,
+      apartment: formData.apartment,
+      city: formData.city,
+      state: formData.state,
+      postalCode: formData.postalCode,
+      country: formData.country,
+    };
+
+    const res = await createOrder({
+      userId: user.id,
+      shippingAddress: shippingAddressPayload,
+      deliveryMethod,
+      paymentMethod,
+      cartItems: cart,
+      discountAmount,
+    });
+
+    setIsProcessing(false);
+
+    if (!res.success) {
+      // Order creation failed: preserve cart, display error message
+      setCheckoutError(res.error || 'Failed to process order. Please try again.');
+      return;
+    }
+
+    // Order creation succeeded: clear cart only after confirmation
+    setPlacedOrder(res.order);
+    clearCart();
   };
 
-  if (cart.length === 0 && !isOrderPlaced) {
+  if (authLoading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center text-xs text-zinc-500 uppercase tracking-widest font-medium">
+        Verifying secure session...
+      </div>
+    );
+  }
+
+  // 1. Requirement: Authenticated users only
+  if (!user) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center space-y-6">
+        <Lock className="w-12 h-12 text-[#C5A880] mx-auto" />
+        <h2 className="font-serif text-2xl font-medium text-zinc-900">Sign In Required for Checkout</h2>
+        <p className="text-sm text-zinc-500 max-w-md mx-auto leading-relaxed">
+          Please sign in to your Atelier account to complete your secure purchase and save order history.
+        </p>
+        <div className="flex justify-center gap-3 pt-2">
+          <Link to={`/login?redirect=${encodeURIComponent(location.pathname)}`}>
+            <Button variant="primary" size="md">Sign In to Continue</Button>
+          </Link>
+          <Link to={`/register?redirect=${encodeURIComponent(location.pathname)}`}>
+            <Button variant="outline" size="md">Create Account</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Requirement: Prevent checkout with empty cart
+  if (cart.length === 0 && !placedOrder) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
         <ShoppingBag className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
@@ -84,6 +174,17 @@ export default function Checkout() {
         </h1>
       </div>
 
+      {/* Checkout Failure Error Banner */}
+      {checkoutError && (
+        <div className="mb-8 p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-3 rounded-none">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold uppercase tracking-wider text-[11px]">Checkout Could Not Be Completed</p>
+            <p className="mt-0.5">{checkoutError}</p>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handlePlaceOrder}>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           {/* Left Column: Form Details (7 cols) */}
@@ -97,9 +198,9 @@ export default function Checkout() {
                   </span>
                   Contact Information
                 </h3>
-                <Link to="/login" className="text-xs text-[#C5A880] hover:underline font-medium">
-                  Already have an account?
-                </Link>
+                <span className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Authenticated Account
+                </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -249,7 +350,7 @@ export default function Checkout() {
                     </div>
                   </div>
                   <span className="text-xs font-semibold text-zinc-900">
-                    {shippingCost === 0 ? 'COMPLIMENTARY' : formatPrice(shippingCost)}
+                    {subtotal >= 200 ? 'COMPLIMENTARY' : '$15.00'}
                   </span>
                 </label>
 
@@ -270,7 +371,7 @@ export default function Checkout() {
                     </div>
                   </div>
                   <span className="text-xs font-semibold text-zinc-900">
-                    {formatPrice(shippingCost + 25)}
+                    $25.00
                   </span>
                 </label>
               </div>
@@ -324,6 +425,16 @@ export default function Checkout() {
                       Mock Secure Card Sandbox
                     </span>
                     <span>Visa / MasterCard / Amex</span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-zinc-700 block mb-1">Cardholder Name</label>
+                    <input
+                      type="text"
+                      value={cardDetails.name}
+                      onChange={(e) => setCardDetails({ ...cardDetails, name: e.target.value })}
+                      className="w-full text-xs p-3 bg-white border border-zinc-300 focus:outline-none focus:border-zinc-950"
+                    />
                   </div>
 
                   <div>
@@ -385,14 +496,14 @@ export default function Checkout() {
               {cart.map((item) => (
                 <div key={item.cartItemId} className="py-3 flex items-center gap-3 text-xs">
                   <img
-                    src={item.product.images[0]}
-                    alt={item.product.name}
+                    src={item.product?.images?.[0]}
+                    alt={item.product?.name}
                     className="w-12 h-14 object-cover bg-zinc-200 shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <h5 className="font-medium text-zinc-900 truncate">{item.product.name}</h5>
+                    <h5 className="font-medium text-zinc-900 truncate">{item.product?.name}</h5>
                     <p className="text-zinc-500 text-[11px]">
-                      {item.selectedSize} • {item.selectedColor.name} • Qty: {item.quantity}
+                      {item.selectedSize} • {item.selectedColor?.name || 'Standard'} • Qty: {item.quantity}
                     </p>
                   </div>
                   <span className="font-semibold text-zinc-900">
@@ -442,7 +553,7 @@ export default function Checkout() {
               isLoading={isProcessing}
               className="py-4 shadow-md"
             >
-              {isProcessing ? 'Authorizing Atelier Order...' : `Place Order • ${formatPrice(grandTotal)}`}
+              {isProcessing ? 'Validating Stock & Authorizing Order...' : `Place Order • ${formatPrice(grandTotal)}`}
             </Button>
 
             <div className="text-center">
@@ -456,12 +567,13 @@ export default function Checkout() {
 
       {/* Order Complete Modal */}
       <Modal
-        isOpen={isOrderPlaced}
+        isOpen={Boolean(placedOrder)}
         onClose={() => {
-          setIsOrderPlaced(false);
-          navigate('/');
+          if (placedOrder) {
+            navigate(`/orders/${placedOrder.id}`);
+          }
         }}
-        title="Order Confirmed"
+        title="Order Confirmed & Saved"
       >
         <div className="text-center py-6 space-y-4">
           <div className="w-16 h-16 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
@@ -473,23 +585,23 @@ export default function Checkout() {
           </h3>
 
           <p className="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed">
-            Your reference number is <strong className="text-zinc-950">{orderReference}</strong>. A receipt and carbon-neutral tracking link have been dispatched to <strong className="text-zinc-950">{formData.email}</strong>.
+            Your order has been recorded in our InsForge database. Reference ID: <strong className="text-zinc-950 font-mono">{placedOrder?.id}</strong>.
           </p>
 
           <div className="p-4 bg-zinc-50 border border-zinc-200 text-xs text-left space-y-2 max-w-sm mx-auto">
             <div className="flex justify-between">
-              <span className="text-zinc-500">Destination:</span>
-              <span className="font-medium text-zinc-900">{formData.city}, {formData.country}</span>
+              <span className="text-zinc-500">Order Status:</span>
+              <span className="font-semibold text-emerald-700 uppercase tracking-wider">{placedOrder?.status || 'Processing'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">Estimated Delivery:</span>
+              <span className="text-zinc-500">Total Charged:</span>
+              <span className="font-semibold text-zinc-900">{placedOrder && formatPrice(placedOrder.total_amount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Delivery:</span>
               <span className="font-medium text-zinc-900">
                 {deliveryMethod === 'express' ? '1-2 Business Days' : '3-5 Business Days'}
               </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Payment:</span>
-              <span className="font-medium text-zinc-900 uppercase">{paymentMethod}</span>
             </div>
           </div>
 
@@ -497,12 +609,16 @@ export default function Checkout() {
             <Button
               variant="primary"
               size="md"
-              onClick={() => {
-                setIsOrderPlaced(false);
-                navigate('/shop');
-              }}
+              onClick={() => navigate(`/orders/${placedOrder.id}`)}
             >
-              Continue Exploring
+              View Order Details
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => navigate('/orders')}
+            >
+              All Order History
             </Button>
           </div>
         </div>

@@ -106,7 +106,9 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw error;
+      const formattedErr = new Error(error.nextActions || error.message || error.error || 'Registration failed.');
+      formattedErr.raw = error;
+      throw formattedErr;
     }
 
     if (data && data.user) {
@@ -115,16 +117,7 @@ export function AuthProvider({ children }) {
         setSession(data.accessToken);
       }
       // Ensure custom DB profile table row is created
-      await insforge.database
-        .from('profiles')
-        .insert([{
-          id: data.user.id,
-          full_name: name || email.split('@')[0],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }]);
-
-      await fetchDbProfile(data.user.id);
+      await ensureProfileInDb(data.user, name);
     }
     return data;
   };
@@ -137,7 +130,9 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw error;
+      const formattedErr = new Error(error.nextActions || error.message || error.error || 'Authentication failed.');
+      formattedErr.raw = error;
+      throw formattedErr;
     }
 
     if (data && data.user) {

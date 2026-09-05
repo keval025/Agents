@@ -4,7 +4,7 @@ import { ShoppingBag, Heart, Search, User, Menu, X, ArrowRight } from 'lucide-re
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useAuth } from '../../context/AuthContext';
-import { products } from '../../data/products';
+import { getAllProducts } from '../../services/productService.js';
 import { formatPrice } from '../../utils/currency';
 import MobileMenu from './MobileMenu';
 
@@ -13,6 +13,7 @@ export default function Navbar() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [products, setProducts] = useState([]);
 
   const { totalItems, openCartDrawer } = useCart();
   const { totalWishlistItems } = useWishlist();
@@ -26,6 +27,14 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (isSearchOpen && products.length === 0) {
+      getAllProducts().then((res) => {
+        if (res.data) setProducts(res.data);
+      });
+    }
+  }, [isSearchOpen, products.length]);
 
   const searchResults = searchQuery.trim() === ''
     ? []
@@ -117,9 +126,18 @@ export default function Navbar() {
               {user ? (
                 <div className="flex items-center gap-2">
                   <div className="hidden sm:flex items-center gap-2 pl-2 text-xs border-l border-zinc-200">
-                    <span className="font-semibold text-zinc-900 max-w-[100px] truncate">
+                    <Link
+                      to="/orders"
+                      className="font-semibold text-zinc-900 hover:text-[#C5A880] transition-colors max-w-[120px] truncate"
+                    >
                       {profile?.full_name || user.email?.split('@')[0]}
-                    </span>
+                    </Link>
+                    <Link
+                      to="/orders"
+                      className="text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-950 font-medium px-2 py-0.5 bg-zinc-100 border border-zinc-200 transition-colors"
+                    >
+                      My Orders
+                    </Link>
                     <button
                       onClick={signOut}
                       className="text-[10px] uppercase tracking-wider text-zinc-500 hover:text-red-600 transition-colors font-medium underline underline-offset-2 ml-1"

@@ -1,14 +1,61 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, ShieldCheck, Gem, Leaf, Compass } from 'lucide-react';
-import { products, categories, promoBanners } from '../data/products';
+import { ArrowRight, Sparkles, ShieldCheck, Gem, Leaf, Compass, AlertCircle } from 'lucide-react';
+import { getAllProducts } from '../services/productService.js';
+import { getCategories } from '../services/categoryService.js';
 import ProductGrid from '../components/product/ProductGrid';
-import { Button, SectionHeading } from '../components/common';
+import { Button, SectionHeading, Loader, EmptyState } from '../components/common';
 
 export default function Home() {
-  const newArrivals = products.filter((p) => p.isNew).slice(0, 4);
-  const trendingProducts = products.filter((p) => p.isTrending).slice(0, 4);
-  const bestSellers = products.filter((p) => p.isBestSeller).slice(0, 4);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [prodsRes, catsRes] = await Promise.all([
+        getAllProducts(),
+        getCategories(),
+      ]);
+
+      if (prodsRes.error) {
+        setError(prodsRes.error.message || 'Failed to load products');
+      } else {
+        setProducts(prodsRes.data || []);
+      }
+
+      if (catsRes.data) {
+        setCategories(catsRes.data);
+      }
+    } catch (err) {
+      console.error('Home page fetch error:', err);
+      setError('An unexpected error occurred while loading the catalog.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const newArrivals = (products.filter((p) => p.isNew).length > 0
+    ? products.filter((p) => p.isNew)
+    : products
+  ).slice(0, 4);
+
+  const trendingProducts = (products.filter((p) => p.isTrending).length > 0
+    ? products.filter((p) => p.isTrending)
+    : products
+  ).slice(0, 4);
+
+  const bestSellers = (products.filter((p) => p.isBestSeller).length > 0
+    ? products.filter((p) => p.isBestSeller)
+    : products
+  ).slice(0, 4);
 
   return (
     <div className="space-y-20 sm:space-y-28 pb-20">
@@ -56,122 +103,150 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. FEATURED CATEGORIES */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeading
-          kicker="Curation by Category"
-          title="Curated Wardrobe Pillars"
-          actionText="View All Categories"
-          actionLink="/shop"
-        />
+      {/* ERROR STATE */}
+      {error && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <EmptyState
+            icon={AlertCircle}
+            title="Unable to load catalog"
+            description={error}
+            actionText="Try Again"
+            onActionClick={fetchData}
+          />
+        </section>
+      )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {categories.map((category) => (
-            <Link
-              key={category.id}
-              to={`/shop?category=${encodeURIComponent(category.name)}`}
-              className="group relative h-96 overflow-hidden bg-zinc-100 flex flex-col justify-end p-6 border border-zinc-200/60"
-            >
-              <img
-                src={category.image}
-                alt={category.name}
-                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-              
-              <div className="relative z-10 text-white space-y-1">
-                <span className="text-[10px] uppercase tracking-widest text-[#E5DEC9] font-medium">
-                  {category.itemCount} Designs
-                </span>
-                <h3 className="font-serif text-2xl font-normal tracking-wide">
-                  {category.name}
-                </h3>
-                <p className="text-xs text-zinc-300 font-light line-clamp-1">
-                  {category.tagline}
-                </p>
-                <div className="pt-2 flex items-center gap-1 text-[11px] uppercase tracking-widest font-semibold text-[#C5A880] group-hover:underline">
-                  <span>Explore</span>
-                  <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+      {/* LOADING STATE */}
+      {loading && !error && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Loader text="Loading live collection from InsForge..." />
+        </section>
+      )}
+
+      {!loading && !error && (
+        <>
+          {/* 2. FEATURED CATEGORIES */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              kicker="Curation by Category"
+              title="Curated Wardrobe Pillars"
+              actionText="View All Categories"
+              actionLink="/shop"
+            />
+
+            {categories.length === 0 ? (
+              <p className="text-sm text-zinc-500 text-center py-8">No categories available at the moment.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {categories.map((category) => (
+                  <Link
+                    key={category.id}
+                    to={`/shop?category=${encodeURIComponent(category.name)}`}
+                    className="group relative h-96 overflow-hidden bg-zinc-100 flex flex-col justify-end p-6 border border-zinc-200/60"
+                  >
+                    <img
+                      src={category.image || category.image_url}
+                      alt={category.name}
+                      className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                    <div className="relative z-10 text-white space-y-1">
+                      <span className="text-[10px] uppercase tracking-widest text-[#E5DEC9] font-medium">
+                        {category.itemCount ? `${category.itemCount} Designs` : 'Curated Edit'}
+                      </span>
+                      <h3 className="font-serif text-2xl font-normal tracking-wide">
+                        {category.name}
+                      </h3>
+                      <p className="text-xs text-zinc-300 font-light line-clamp-1">
+                        {category.tagline || category.description}
+                      </p>
+                      <div className="pt-2 flex items-center gap-1 text-[11px] uppercase tracking-widest font-semibold text-[#C5A880] group-hover:underline">
+                        <span>Explore</span>
+                        <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* 3. NEW ARRIVALS */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              kicker="Just Arrived"
+              title="The Seasonal New Arrivals"
+              actionText="Browse All New"
+              actionLink="/shop"
+            />
+            <ProductGrid products={newArrivals} />
+          </section>
+
+          {/* 4. PROMOTIONAL EDITORIAL BANNER */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="relative bg-[#1A1A1A] text-white overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-2 items-center">
+                {/* Editorial Copy */}
+                <div className="p-8 sm:p-14 lg:p-20 space-y-6">
+                  <span className="text-xs uppercase tracking-[0.3em] text-[#C5A880] font-semibold">
+                    Atelier Perspective
+                  </span>
+                  <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal leading-tight">
+                    Crafted for Decades, Not Single Seasons.
+                  </h2>
+                  <p className="text-sm text-zinc-300 font-light leading-relaxed">
+                    We reject fast cycles in favor of permanent refinement. Every garment is made in limited numbered ateliers across Porto and Biella using certified biological fibers and master hand-finishing techniques.
+                  </p>
+                  <div className="pt-2 flex flex-wrap gap-4">
+                    <Link to="/shop?category=Women">
+                      <Button variant="gold" size="md">
+                        Shop The Edit
+                      </Button>
+                    </Link>
+                    <Link to="/shop">
+                      <Button variant="outline" size="md" className="border-white text-white hover:bg-white hover:text-zinc-950">
+                        Our Philosophy
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Editorial Image */}
+                <div className="relative h-80 lg:h-full min-h-[400px]">
+                  <img
+                    src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=1200&q=80"
+                    alt="Aura Studio craftsmanship"
+                    className="w-full h-full object-cover object-center"
+                  />
                 </div>
               </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* 3. NEW ARRIVALS */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeading
-          kicker="Just Arrived"
-          title="The Seasonal New Arrivals"
-          actionText="Browse All New"
-          actionLink="/shop"
-        />
-        <ProductGrid products={newArrivals} />
-      </section>
-
-      {/* 4. PROMOTIONAL EDITORIAL BANNER */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="relative bg-[#1A1A1A] text-white overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-2 items-center">
-            {/* Editorial Copy */}
-            <div className="p-8 sm:p-14 lg:p-20 space-y-6">
-              <span className="text-xs uppercase tracking-[0.3em] text-[#C5A880] font-semibold">
-                Atelier Perspective
-              </span>
-              <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal leading-tight">
-                Crafted for Decades, Not Single Seasons.
-              </h2>
-              <p className="text-sm text-zinc-300 font-light leading-relaxed">
-                We reject fast cycles in favor of permanent refinement. Every garment is made in limited numbered ateliers across Porto and Biella using certified biological fibers and master hand-finishing techniques.
-              </p>
-              <div className="pt-2 flex flex-wrap gap-4">
-                <Link to="/shop?category=Women">
-                  <Button variant="gold" size="md">
-                    Shop The Edit
-                  </Button>
-                </Link>
-                <Link to="/shop">
-                  <Button variant="outline" size="md" className="border-white text-white hover:bg-white hover:text-zinc-950">
-                    Our Philosophy
-                  </Button>
-                </Link>
-              </div>
             </div>
+          </section>
 
-            {/* Editorial Image */}
-            <div className="relative h-80 lg:h-full min-h-[400px]">
-              <img
-                src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=1200&q=80"
-                alt="Aura Studio craftsmanship"
-                className="w-full h-full object-cover object-center"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
+          {/* 5. TRENDING NOW */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              kicker="Most Coveted"
+              title="Trending Silhouettes"
+              actionText="View All Trending"
+              actionLink="/shop"
+            />
+            <ProductGrid products={trendingProducts} />
+          </section>
 
-      {/* 5. TRENDING NOW */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeading
-          kicker="Most Coveted"
-          title="Trending Silhouettes"
-          actionText="View All Trending"
-          actionLink="/shop"
-        />
-        <ProductGrid products={trendingProducts} />
-      </section>
-
-      {/* 6. BEST SELLERS */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeading
-          kicker="Atelier Favorites"
-          title="Iconic Best Sellers"
-          actionText="Explore The Icons"
-          actionLink="/shop"
-        />
-        <ProductGrid products={bestSellers} />
-      </section>
+          {/* 6. BEST SELLERS */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              kicker="Atelier Favorites"
+              title="Iconic Best Sellers"
+              actionText="Explore The Icons"
+              actionLink="/shop"
+            />
+            <ProductGrid products={bestSellers} />
+          </section>
+        </>
+      )}
 
       {/* 7. BRAND PILLARS */}
       <section className="bg-zinc-100 py-16 border-y border-zinc-200">

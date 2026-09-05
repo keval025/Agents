@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle2, Mail } from 'lucide-react';
 import Button from '../components/common/Button';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successInfo, setSuccessInfo] = useState(null);
 
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -27,6 +28,7 @@ export default function Register() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setSuccessInfo(null);
 
     if (formData.password !== formData.confirmPassword) {
       const msg = 'Passwords do not match. Please verify.';
@@ -51,8 +53,11 @@ export default function Register() {
       });
 
       if (res?.requireEmailVerification) {
-        addToast('Registration successful! Please check your email to verify your account.', 'success');
-        navigate('/login');
+        setSuccessInfo({
+          email: formData.email,
+          message: 'Account registration submitted! InsForge sent a verification email to your address. Please click the link in your email to activate your profile before logging in.',
+        });
+        addToast('Verification email sent! Check your inbox.', 'info');
       } else {
         addToast('Welcome! Your account has been created successfully.');
         navigate('/shop');
@@ -82,111 +87,135 @@ export default function Register() {
           </p>
         </div>
 
-        {errorMessage && (
-          <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleRegister} className="space-y-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
-              Full Name
-            </label>
-            <input
-              type="text"
-              name="name"
-              required
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Eleanor Vance"
-              className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
-              Email Address
-            </label>
-            <input
-              type="email"
-              name="email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="eleanor@example.com"
-              className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="At least 8 characters"
-                className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="text-zinc-400 hover:text-zinc-700 absolute right-3.5 top-1/2 -translate-y-1/2"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+        {/* Success / Verification Required Notice */}
+        {successInfo ? (
+          <div className="space-y-6 text-center py-4">
+            <div className="w-14 h-14 bg-amber-50 border border-amber-200 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+              <Mail className="w-7 h-7" />
+            </div>
+            <h3 className="font-serif text-xl font-medium text-zinc-900">
+              Verify Your Email Address
+            </h3>
+            <p className="text-xs text-zinc-600 leading-relaxed bg-zinc-50 p-4 border border-zinc-200">
+              {successInfo.message}
+            </p>
+            <div className="pt-2">
+              <Link to="/login">
+                <Button variant="primary" size="md" fullWidth>
+                  Proceed to Sign In Page
+                </Button>
+              </Link>
             </div>
           </div>
+        ) : (
+          <>
+            {errorMessage && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
-              Confirm Password
-            </label>
-            <input
-              type={showPassword ? 'text' : 'password'}
-              name="confirmPassword"
-              required
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              placeholder="Repeat your password"
-              className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
-            />
-          </div>
+            {/* Form */}
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Eleanor Vance"
+                  className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
+                />
+              </div>
 
-          <div className="pt-2">
-            <label className="flex items-start gap-2 text-xs text-zinc-600 cursor-pointer">
-              <input
-                type="checkbox"
-                required
-                defaultChecked
-                className="accent-zinc-950 rounded border-zinc-300 h-3.5 w-3.5 mt-0.5"
-              />
-              <span className="leading-tight">
-                I agree to the Terms of Service and Privacy Policy.
-              </span>
-            </label>
-          </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="eleanor@example.com"
+                  className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
+                />
+              </div>
 
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            fullWidth
-            isLoading={isLoading}
-            icon={ArrowRight}
-            className="mt-6 py-4"
-          >
-            Create Account
-          </Button>
-        </form>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    required
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="At least 6 characters"
+                    className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-zinc-400 hover:text-zinc-700 absolute right-3.5 top-1/2 -translate-y-1/2"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-700 block mb-1.5">
+                  Confirm Password
+                </label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  required
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Repeat your password"
+                  className="w-full text-xs p-3.5 bg-zinc-50 border border-zinc-300 focus:outline-none focus:border-zinc-950 focus:bg-white"
+                />
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-start gap-2 text-xs text-zinc-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    required
+                    defaultChecked
+                    className="accent-zinc-950 rounded border-zinc-300 h-3.5 w-3.5 mt-0.5"
+                  />
+                  <span className="leading-tight">
+                    I agree to the Terms of Service and Privacy Policy.
+                  </span>
+                </label>
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                fullWidth
+                isLoading={isLoading}
+                icon={ArrowRight}
+                className="mt-6 py-4"
+              >
+                Create Account
+              </Button>
+            </form>
+          </>
+        )}
 
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-zinc-100 text-center text-xs text-zinc-500">

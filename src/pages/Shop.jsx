@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SlidersHorizontal, X, ArrowUpDown, Search } from 'lucide-react';
-import { products, categories, brands, allSizes } from '../data/products';
+import { SlidersHorizontal, X, ArrowUpDown, Search, AlertCircle } from 'lucide-react';
+import { getAllProducts } from '../services/productService.js';
+import { getCategories } from '../services/categoryService.js';
 import ProductGrid from '../components/product/ProductGrid';
 import ProductFilters from '../components/product/ProductFilters';
+import { Loader, EmptyState } from '../components/common';
 
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -11,6 +13,12 @@ export default function Shop() {
   // Extract query params
   const initialCategory = searchParams.get('category') || 'all';
   const initialSearch = searchParams.get('search') || '';
+
+  // Data states
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Local filter states
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
@@ -21,6 +29,37 @@ export default function Shop() {
   const [selectedColors, setSelectedColors] = useState([]);
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  // Fetch data from InsForge services
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [prodsRes, catsRes] = await Promise.all([
+        getAllProducts(),
+        getCategories(),
+      ]);
+
+      if (prodsRes.error) {
+        setError(prodsRes.error.message || 'Failed to load products');
+      } else {
+        setProducts(prodsRes.data || []);
+      }
+
+      if (catsRes.data) {
+        setCategories(catsRes.data);
+      }
+    } catch (err) {
+      console.error('Error in Shop component data fetch:', err);
+      setError('An error occurred while loading products.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   // Sync state if URL searchParams change
   useEffect(() => {
@@ -34,7 +73,18 @@ export default function Shop() {
     }
   }, [searchParams]);
 
-  // Extract unique colors from all products
+  // Derived filter options from live database products
+  const availableBrands = useMemo(() => {
+    const set = new Set(products.map((p) => p.brand).filter(Boolean));
+    return Array.from(set);
+  }, [products]);
+
+  const availableSizes = useMemo(() => {
+    const set = new Set();
+    products.forEach((p) => p.sizes?.forEach((s) => set.add(s)));
+    return Array.from(set);
+  }, [products]);
+
   const availableColors = useMemo(() => {
     const map = new Map();
     products.forEach((p) => {
@@ -45,7 +95,7 @@ export default function Shop() {
       });
     });
     return Array.from(map.values());
-  }, []);
+  }, [products]);
 
   // Filter handlers
   const handleSelectCategory = (cat) => {
@@ -148,7 +198,7 @@ export default function Shop() {
       .sort((a, b) => {
         if (sortBy === 'price-asc') return a.price - b.price;
         if (sortBy === 'price-desc') return b.price - a.price;
-        if (sortBy === 'popularity') return b.reviewCount - a.reviewCount;
+        if (sortBy === 'popularity') return (b.reviewCount || 0) - (a.reviewCount || 0);
         if (sortBy === 'newest') {
           if (a.isNew && !b.isNew) return -1;
           if (!a.isNew && b.isNew) return 1;
@@ -157,6 +207,7 @@ export default function Shop() {
         return 0;
       });
   }, [
+    products,
     searchQuery,
     selectedCategory,
     priceRange,
@@ -218,7 +269,7 @@ export default function Shop() {
 
         {/* Category Pill Tabs for fast desktop navigation */}
         <div className="hidden lg:flex items-center space-x-2">
-          {['all', 'Women', 'Men', 'Accessories', 'Footwear'].map((cat) => (
+          {['all', ...categories.map((c) => c.name)].map((cat) => (
             <button
               key={cat}
               onClick={() => handleSelectCategory(cat)}
@@ -324,40 +375,62 @@ export default function Shop() {
         </div>
       )}
 
-      {/* Main Layout: Filters Sidebar + Product Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        {/* Desktop Filters Sidebar */}
-        <aside className="hidden lg:block lg:col-span-1 bg-white p-6 border border-zinc-200 sticky top-28">
-          <ProductFilters
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={handleSelectCategory}
-            brands={brands}
-            selectedBrands={selectedBrands}
-            onToggleBrand={handleToggleBrand}
-            priceRange={priceRange}
-            maxPossiblePrice={700}
-            onChangePriceRange={setPriceRange}
-            sizes={allSizes}
-            selectedSizes={selectedSizes}
-            onToggleSize={handleToggleSize}
-            colors={availableColors}
-            selectedColors={selectedColors}
-            onToggleColor={handleToggleColor}
-            onResetAll={handleResetAll}
-            hasActiveFilters={hasActiveFilters}
+      {/* ERROR STATE */}
+      {error && (
+        <div className="py-12">
+          <EmptyState
+            icon={AlertCircle}
+            title="Failed to load catalog"
+            description={error}
+            actionText="Retry Loading"
+            onActionClick={fetchData}
           />
-        </aside>
+        </div>
+      )}
 
-        {/* Product Grid Area */}
-        <main className="lg:col-span-3">
-          <ProductGrid
-            products={filteredProducts}
-            columns="grid-cols-2 sm:grid-cols-2 md:grid-cols-3"
-            onResetFilters={hasActiveFilters ? handleResetAll : undefined}
-          />
-        </main>
-      </div>
+      {/* LOADING STATE */}
+      {loading && !error && (
+        <div className="py-16">
+          <Loader text="Fetching catalog from InsForge..." />
+        </div>
+      )}
+
+      {/* Main Layout: Filters Sidebar + Product Grid */}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+          {/* Desktop Filters Sidebar */}
+          <aside className="hidden lg:block lg:col-span-1 bg-white p-6 border border-zinc-200 sticky top-28">
+            <ProductFilters
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onSelectCategory={handleSelectCategory}
+              brands={availableBrands}
+              selectedBrands={selectedBrands}
+              onToggleBrand={handleToggleBrand}
+              priceRange={priceRange}
+              maxPossiblePrice={700}
+              onChangePriceRange={setPriceRange}
+              sizes={availableSizes}
+              selectedSizes={selectedSizes}
+              onToggleSize={handleToggleSize}
+              colors={availableColors}
+              selectedColors={selectedColors}
+              onToggleColor={handleToggleColor}
+              onResetAll={handleResetAll}
+              hasActiveFilters={hasActiveFilters}
+            />
+          </aside>
+
+          {/* Product Grid Area */}
+          <main className="lg:col-span-3">
+            <ProductGrid
+              products={filteredProducts}
+              columns="grid-cols-2 sm:grid-cols-2 md:grid-cols-3"
+              onResetFilters={hasActiveFilters ? handleResetAll : undefined}
+            />
+          </main>
+        </div>
+      )}
 
       {/* Mobile Filters Drawer */}
       {isMobileFiltersOpen && (
@@ -381,13 +454,13 @@ export default function Shop() {
                 categories={categories}
                 selectedCategory={selectedCategory}
                 onSelectCategory={handleSelectCategory}
-                brands={brands}
+                brands={availableBrands}
                 selectedBrands={selectedBrands}
                 onToggleBrand={handleToggleBrand}
                 priceRange={priceRange}
                 maxPossiblePrice={700}
                 onChangePriceRange={setPriceRange}
-                sizes={allSizes}
+                sizes={availableSizes}
                 selectedSizes={selectedSizes}
                 onToggleSize={handleToggleSize}
                 colors={availableColors}

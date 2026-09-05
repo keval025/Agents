@@ -1,6 +1,6 @@
 # Atelier - Modern Fashion E-Commerce Web Application
 
-A modern, full-featured fashion e-commerce store built with **React**, **Vite**, **Tailwind CSS**, and **InsForge BaaS**. Designed with a clean UI, smooth user interaction, user authentication, interactive cart/wishlist management, and dynamic product showcase.
+A modern, full-featured fashion e-commerce store built with **React**, **Vite**, **Tailwind CSS**, and **InsForge BaaS**. Products, categories, and orders are served from a live InsForge database through a dedicated service layer, with local mock data as an automatic fallback so the storefront stays usable even when the backend is unreachable.
 
 ---
 
@@ -8,24 +8,31 @@ A modern, full-featured fashion e-commerce store built with **React**, **Vite**,
 
 - **User Authentication (InsForge SDK)**:
   - Sign up with full name, email, and password.
-  - User profile creation & synchronization.
+  - User profile row created and synchronized in the `profiles` table.
   - Sign in and sign out with persistent session state (`AuthContext`).
-  - Password recovery flow UI.
-- **Product Catalog & Filtering (`Shop`)**:
-  - Filter products by category, price range, rating, and availability.
-  - Debounced search functionality for responsive filtering.
+  - Password recovery flow UI and human-readable auth error messages.
+- **Live Product Catalog (`productService`, `categoryService`)**:
+  - Products, images, and variants fetched from the InsForge database.
+  - Automatic fallback to bundled mock data when a fetch fails or returns empty.
+  - Filter by category, price range, rating, and availability.
+  - Debounced search on the shop page and in the navbar.
   - Quick view modal for rapid product inspection.
 - **Cart & Wishlist System**:
   - Slide-over Cart Drawer for quick access.
   - Persistent cart state across sessions using local storage & React Context.
   - Dedicated Wishlist page to save favorite items.
-  - Real-time cart badge counters on navbar.
-- **Seamless Checkout Flow**:
-  - Multi-step order summary and customer details form.
+  - Real-time cart badge counters on the navbar.
+- **Validated Checkout (`orderService`)**:
+  - Stock levels and prices are re-checked against the live database before an order is placed, so client-side cart data can't set the final total.
+  - Variant-aware stock checks (size / color) against `product_variants`.
+  - Orders written to `orders` with line items in `order_items`.
+- **Order History**:
+  - `/orders` lists the signed-in user's past orders.
+  - `/orders/:id` shows a single order's items, totals, and status.
 - **Responsive & Elegant UI**:
   - Mobile-responsive navigation drawer and announcement bar.
-  - Designed with Tailwind CSS 3.4 and Lucide React icons.
-  - Interactive toast notifications for user actions (cart additions, auth status, alerts).
+  - Built with Tailwind CSS 3.4 and Lucide React icons.
+  - Toast notifications for cart actions, auth status, and errors.
 
 ---
 
@@ -34,7 +41,7 @@ A modern, full-featured fashion e-commerce store built with **React**, **Vite**,
 - **Frontend**: React 18, Vite 6
 - **Routing**: React Router DOM v6
 - **Styling**: Tailwind CSS v3.4, PostCSS, Autoprefixer
-- **Backend / Authentication**: `@insforge/sdk` (InsForge BaaS)
+- **Backend / Auth / Database**: `@insforge/sdk` (InsForge BaaS)
 - **Icons**: `lucide-react`
 
 ---
@@ -51,16 +58,38 @@ Agents/
 │   │   ├── layout/        # Navbar, Footer, CartDrawer, MobileMenu, Layout
 │   │   └── product/       # ProductCard, ProductGrid, ProductFilters, QuickViewModal
 │   ├── context/           # React Context providers (Auth, Cart, Wishlist, Toast)
-│   ├── data/              # Mock data / initial data sources
+│   ├── data/              # Mock data used as fallback when the backend is unavailable
 │   ├── hooks/             # Custom React hooks (useDebounce, useLocalStorage)
-│   ├── lib/               # Third-party integrations (InsForge SDK client)
-│   ├── pages/             # Route pages (Home, Shop, ProductDetails, Cart, Wishlist, Login, Register, etc.)
+│   ├── lib/               # InsForge SDK client configuration
+│   ├── pages/             # Route pages (Home, Shop, ProductDetails, Cart, Wishlist,
+│   │                      # Checkout, Login, Register, Orders, OrderDetails, ...)
+│   ├── services/          # Data layer between the UI and InsForge
+│   │   ├── productService.js    # Products, images, variants, color mapping
+│   │   ├── categoryService.js   # Categories and per-category product counts
+│   │   └── orderService.js      # Cart validation, order creation, order history
 │   ├── App.jsx            # Main App component with route setup
 │   ├── main.jsx           # React DOM entrypoint
 │   └── index.css          # Tailwind CSS base styles
 ├── package.json
 └── vite.config.js
 ```
+
+---
+
+## 🧭 Routes
+
+| Path | Page | Notes |
+| --- | --- | --- |
+| `/` | Home | Featured products and categories from the database |
+| `/shop` | Shop | Filtering, sorting, and debounced search |
+| `/product/:id` | ProductDetails | Resolves by id or slug, with related products |
+| `/cart` | Cart | Cart line items |
+| `/wishlist` | Wishlist | Saved items |
+| `/checkout` | Checkout | Server-validated stock and totals |
+| `/orders` | Orders | Signed-in user's order history |
+| `/orders/:id` | OrderDetails | Single order with line items |
+| `/login`, `/register`, `/forgot-password` | Auth | InsForge authentication |
+| `*` | NotFound | 404 fallback |
 
 ---
 
@@ -84,18 +113,26 @@ Agents/
    npm install
    ```
 
-3. **Start the development server**:
+3. **Configure environment variables** (optional — defaults are baked in):
+   ```bash
+   # .env
+   VITE_INSFORGE_URL=https://your-project.insforge.app
+   VITE_INSFORGE_ANON_KEY=your_anon_key
+   ```
+   `.env` is git-ignored. Only the public anon key belongs here; never commit a service key.
+
+4. **Start the development server**:
    ```bash
    npm run dev
    ```
    Open `http://localhost:5173` in your browser.
 
-4. **Build for production**:
+5. **Build for production**:
    ```bash
    npm run build
    ```
 
-5. **Preview production build**:
+6. **Preview production build**:
    ```bash
    npm run preview
    ```
@@ -104,9 +141,27 @@ Agents/
 
 ## 🔒 Backend Integration (InsForge)
 
-The application integrates with InsForge for authentication and user profile database management:
-- Client configuration located in [`src/lib/insforge.js`](file:///C:/Users/SIS/Documents/Agents/src/lib/insforge.js)
-- Authentication state managed globally via [`src/context/AuthContext.jsx`](file:///C:/Users/SIS/Documents/Agents/src/context/AuthContext.jsx)
+The application uses InsForge for authentication and as its primary datastore:
+
+- Client configuration: [`src/lib/insforge.js`](src/lib/insforge.js)
+- Global auth state: [`src/context/AuthContext.jsx`](src/context/AuthContext.jsx)
+- Data access lives in [`src/services/`](src/services) — pages never query the database directly.
+
+### Database tables
+
+| Table | Purpose |
+| --- | --- |
+| `profiles` | User profile row created on sign-up |
+| `categories` | Product categories with slug, description, image |
+| `products` | Catalog items, pricing, stock, category reference |
+| `product_images` | Additional gallery images per product |
+| `product_variants` | Size / color variants with their own stock levels |
+| `orders` | Order header: user, totals, status, shipping details |
+| `order_items` | Line items belonging to an order |
+
+### Fallback behaviour
+
+`productService` and `categoryService` fall back to the mock data in `src/data/` whenever a query errors or returns no rows, so the UI degrades gracefully instead of rendering an empty store. Order operations have no fallback — they require a live database and a signed-in user.
 
 ---
 

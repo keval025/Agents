@@ -7,4 +7,6 @@ export { default as Checkout } from './Checkout';
 export { default as Login } from './Login';
 export { default as Register } from './Register';
 export { default as ForgotPassword } from './ForgotPassword';
+export { default as Orders } from './Orders';
+export { default as OrderDetails } from './OrderDetails';
 export { default as NotFound } from './NotFound';

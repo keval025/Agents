@@ -78,6 +78,14 @@ export default function MobileMenu({ isOpen, onClose }) {
                 <span>Shopping Bag</span>
               </Link>
               <Link
+                to="/orders"
+                onClick={onClose}
+                className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-950 py-1"
+              >
+                <ShoppingBag className="w-4 h-4 text-zinc-900" />
+                <span>My Orders</span>
+              </Link>
+              <Link
                 to="/login"
                 onClick={onClose}
                 className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-950 py-1"

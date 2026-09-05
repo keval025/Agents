@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Heart, ShoppingBag, ArrowLeft, ShieldCheck, Truck, RefreshCw, ChevronDown, ChevronUp, Share2, Check } from 'lucide-react';
-import { products } from '../data/products';
+import { Heart, ShoppingBag, ArrowLeft, ShieldCheck, Truck, RefreshCw, ChevronDown, ChevronUp, Share2, Check, AlertCircle } from 'lucide-react';
+import { getProductById, getProductBySlug, getAllProducts } from '../services/productService.js';
 import { formatPrice } from '../utils/currency';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -9,7 +9,7 @@ import { useToast } from '../context/ToastContext';
 import ProductGallery from '../components/product/ProductGallery';
 import RatingStars from '../components/product/RatingStars';
 import ProductGrid from '../components/product/ProductGrid';
-import { Button, Breadcrumbs } from '../components/common';
+import { Button, Breadcrumbs, Loader, EmptyState } from '../components/common';
 
 export default function ProductDetails() {
   const { id } = useParams();
@@ -18,31 +18,78 @@ export default function ProductDetails() {
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { addToast } = useToast();
 
-  const product = products.find((p) => p.id === id);
+  const [product, setProduct] = useState(null);
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // States
+  // Purchasing selections
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('details'); // details, shipping, care
 
-  useEffect(() => {
-    if (product) {
-      setSelectedColor(product.colors?.[0] || null);
-      setSelectedSize(product.sizes?.[0] || 'One Size');
-      setQuantity(1);
+  const fetchProduct = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let res = await getProductById(id);
+      if (!res.data) {
+        res = await getProductBySlug(id);
+      }
+
+      if (res.error && !res.data) {
+        setError(res.error.message || 'Product not found');
+      } else {
+        const prod = res.data;
+        setProduct(prod);
+
+        if (prod) {
+          setSelectedColor(prod.colors?.[0] || null);
+          setSelectedSize(prod.sizes?.[0] || 'One Size');
+          setQuantity(1);
+
+          // Fetch related products in same category
+          const allRes = await getAllProducts();
+          if (allRes.data) {
+            const related = allRes.data
+              .filter((p) => p.category === prod.category && p.id !== prod.id)
+              .slice(0, 4);
+            setRelatedProducts(related);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Error loading product ${id}:`, err);
+      setError('An error occurred while loading product details.');
+    } finally {
+      setLoading(false);
       window.scrollTo(0, 0);
     }
-  }, [id, product]);
+  };
 
-  if (!product) {
+  useEffect(() => {
+    fetchProduct();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20">
+        <Loader text="Loading garment details..." />
+      </div>
+    );
+  }
+
+  if (error || !product) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <h2 className="font-serif text-2xl font-medium text-zinc-900 mb-4">Product Not Found</h2>
-        <p className="text-sm text-zinc-500 mb-6">The requested garment could not be found in our current catalog.</p>
-        <Link to="/shop">
-          <Button variant="primary">Return to Shop</Button>
-        </Link>
+        <EmptyState
+          icon={AlertCircle}
+          title="Product Not Found"
+          description="The requested garment could not be found in our current catalog."
+          actionText="Return to Shop"
+          actionLink="/shop"
+        />
       </div>
     );
   }
@@ -59,10 +106,6 @@ export default function ProductDetails() {
       addToast('Link copied to clipboard!');
     }
   };
-
-  const relatedProducts = products
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 4);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
