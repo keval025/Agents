@@ -1,21 +1,35 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Mail } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Mail, AlertCircle } from 'lucide-react';
 import Button from '../components/common/Button';
+import { insforge } from '../lib/insforge';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage('');
 
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { data, error } = await insforge.auth.sendResetPasswordEmail({
+        email,
+      });
+
+      if (error) {
+        throw error;
+      }
+
       setIsSubmitted(true);
-    }, 800);
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to send reset email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import Button from '../components/common/Button';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -13,27 +14,56 @@ export default function Register() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { signUp } = useAuth();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
+
     if (formData.password !== formData.confirmPassword) {
-      addToast('Passwords do not match. Please verify.', 'error');
+      const msg = 'Passwords do not match. Please verify.';
+      setErrorMessage(msg);
+      addToast(msg, 'error');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      const msg = 'Password must be at least 6 characters long.';
+      setErrorMessage(msg);
+      addToast(msg, 'error');
       return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await signUp({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+      });
+
+      if (res?.requireEmailVerification) {
+        addToast('Registration successful! Please check your email to verify your account.', 'success');
+        navigate('/login');
+      } else {
+        addToast('Welcome! Your account has been created successfully.');
+        navigate('/shop');
+      }
+    } catch (err) {
+      const errorText = err.message || err.error || 'Failed to create account. Please try again.';
+      setErrorMessage(errorText);
+      addToast(errorText, 'error');
+    } finally {
       setIsLoading(false);
-      addToast('Welcome to the AURA Atelier community!');
-      navigate('/shop');
-    }, 800);
+    }
   };
 
   return (
@@ -51,6 +81,13 @@ export default function Register() {
             Enjoy personal styling recommendations and private salon previews.
           </p>
         </div>
+
+        {errorMessage && (
+          <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleRegister} className="space-y-4">

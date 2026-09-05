@@ -1,27 +1,36 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 import Button from '../components/common/Button';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { signIn } = useAuth();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage('');
 
-    setTimeout(() => {
-      setIsLoading(false);
-      addToast('Welcome back to the AURA Atelier portal.');
+    try {
+      await signIn({ email, password });
+      addToast('Welcome back! You have successfully signed in.');
       navigate('/shop');
-    }, 800);
+    } catch (err) {
+      setErrorMessage(err.message || err.error || 'Failed to sign in. Please check your credentials.');
+      addToast(err.message || 'Invalid credentials.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDemoFill = () => {
@@ -56,6 +65,13 @@ export default function Login() {
             Fill Demo Data
           </button>
         </div>
+
+        {errorMessage && (
+          <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleLogin} className="space-y-4">

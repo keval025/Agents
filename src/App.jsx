@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
 
@@ -25,11 +26,12 @@ import {
 export default function App() {
   return (
     <ToastProvider>
-      <CartProvider>
-        <WishlistProvider>
-          <Router>
-            <ScrollToTop />
-            <Layout>
+      <AuthProvider>
+        <CartProvider>
+          <WishlistProvider>
+            <Router>
+              <ScrollToTop />
+              <Layout>
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/shop" element={<Shop />} />
@@ -47,6 +49,7 @@ export default function App() {
           </Router>
         </WishlistProvider>
       </CartProvider>
-    </ToastProvider>
-  );
+    </AuthProvider>
+  </ToastProvider>
+);
 }

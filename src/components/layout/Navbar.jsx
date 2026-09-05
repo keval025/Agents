@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Heart, Search, User, Menu, X, ArrowRight } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { useAuth } from '../../context/AuthContext';
 import { products } from '../../data/products';
 import { formatPrice } from '../../utils/currency';
 import MobileMenu from './MobileMenu';
@@ -15,6 +16,7 @@ export default function Navbar() {
 
   const { totalItems, openCartDrawer } = useCart();
   const { totalWishlistItems } = useWishlist();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -111,14 +113,30 @@ export default function Navbar() {
                 <Search className="w-5 h-5 stroke-[1.75]" />
               </button>
 
-              {/* User Account */}
-              <Link
-                to="/login"
-                className="hidden sm:inline-flex p-2 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 rounded-full transition-colors"
-                aria-label="User Account"
-              >
-                <User className="w-5 h-5 stroke-[1.75]" />
-              </Link>
+              {/* User Account & Auth Actions */}
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <div className="hidden sm:flex items-center gap-2 pl-2 text-xs border-l border-zinc-200">
+                    <span className="font-semibold text-zinc-900 max-w-[100px] truncate">
+                      {profile?.full_name || user.email?.split('@')[0]}
+                    </span>
+                    <button
+                      onClick={signOut}
+                      className="text-[10px] uppercase tracking-wider text-zinc-500 hover:text-red-600 transition-colors font-medium underline underline-offset-2 ml-1"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  className="hidden sm:inline-flex p-2 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 rounded-full transition-colors"
+                  aria-label="User Account"
+                >
+                  <User className="w-5 h-5 stroke-[1.75]" />
+                </Link>
+              )}
 
               {/* Wishlist Icon with Counter */}
               <Link
